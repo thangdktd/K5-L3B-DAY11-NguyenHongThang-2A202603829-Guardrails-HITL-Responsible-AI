@@ -33,12 +33,15 @@ except ImportError:
 PROVIDER_OPENAI = "openai"
 PROVIDER_GEMINI = "gemini"
 PROVIDER_OPENROUTER = "openrouter"
+PROVIDER_OLLAMA = "ollama"
 
-# --- Blue Team (LOCKED) ---
+# --- Blue Team ---
 BLUE_PROVIDER = PROVIDER_OPENROUTER
 BLUE_MODEL = "liquid/lfm-3-1.7b:free"
 OPENROUTER_BASE_URL = "https://openrouter.ai/api/v1"
 DEFAULT_OPENROUTER_MODEL = BLUE_MODEL  # alias
+DEFAULT_OLLAMA_BASE_URL = "http://localhost:11434/v1"
+DEFAULT_OLLAMA_MODEL = "lfm3:1.7b-q4_K_M"
 
 # --- Red Team ---
 DEFAULT_OPENAI_MODEL = "gpt-4o-mini"
@@ -100,11 +103,21 @@ except FileNotFoundError:
 # ---------------------------------------------------------------------------
 
 def get_blue_provider() -> str:
-    return BLUE_PROVIDER
+    provider = os.environ.get("BLUE_PROVIDER", BLUE_PROVIDER).strip().lower()
+    if provider not in {PROVIDER_OPENROUTER, PROVIDER_OLLAMA}:
+        raise ValueError(
+            "BLUE_PROVIDER must be 'openrouter' or 'ollama'."
+        )
+    return provider
 
 
 def get_blue_model() -> str:
-    # Hard-locked; env cannot override for the graded Blue Team path.
+    if get_blue_provider() == PROVIDER_OLLAMA:
+        return (
+            os.environ.get("OLLAMA_MODEL", DEFAULT_OLLAMA_MODEL).strip()
+            or DEFAULT_OLLAMA_MODEL
+        )
+    # OpenRouter model is hard-locked; env cannot override it.
     return BLUE_MODEL
 
 
@@ -113,7 +126,17 @@ def get_openrouter_api_key() -> str:
 
 
 def blue_client_kwargs() -> dict:
-    """OpenAI SDK kwargs pointing at OpenRouter (Blue Team only)."""
+    """OpenAI SDK kwargs for the selected Blue provider."""
+    if get_blue_provider() == PROVIDER_OLLAMA:
+        return {
+            # Ollama's OpenAI-compatible endpoint does not require authentication.
+            # The SDK requires a non-empty key, so use a non-secret local sentinel.
+            "api_key": "ollama",
+            "base_url": (
+                os.environ.get("OLLAMA_BASE_URL", DEFAULT_OLLAMA_BASE_URL).strip()
+                or DEFAULT_OLLAMA_BASE_URL
+            ),
+        }
     return {
         "api_key": get_openrouter_api_key() or None,
         "base_url": (
@@ -234,34 +257,38 @@ def is_harder_model() -> bool:
     return any(x in m for x in ("gpt-5.6", "pro", "gemini-3.8", "gemini-3.7"))
 
 
-def setup_api_key():
+def setup_api_key(*, require_red: bool = True):
     """Ensure keys for Blue (OpenRouter) + Red / Red Advance (OpenAI or Gemini)."""
-    if not get_openrouter_api_key():
-        os.environ["OPENROUTER_API_KEY"] = input(
-            "Enter OpenRouter API Key (Blue): "
-        ).strip()
-    print(f"Blue  — {blue_provider_label()}  [LOCKED]")
-
-    red = get_red_provider()
-    model = get_red_model()
-    if red == PROVIDER_GEMINI:
-        if not os.environ.get("GOOGLE_API_KEY", "").strip():
-            os.environ["GOOGLE_API_KEY"] = input("Enter Google API Key (Red): ").strip()
-        os.environ["GOOGLE_GENAI_USE_VERTEXAI"] = "0"
-        print(f"Red / Red Advance  — gemini:{model}")
+    if get_blue_provider() == PROVIDER_OLLAMA:
+        print(f"Blue  — {blue_provider_label()}  [LOCAL]")
     else:
-        if not get_openai_api_key():
-            os.environ["OPENAI_API_KEY"] = input("Enter OpenAI API Key (Red): ").strip()
-        print(f"Red / Red Advance  — openai:{model}")
+        if not get_openrouter_api_key():
+            os.environ["OPENROUTER_API_KEY"] = input(
+                "Enter OpenRouter API Key (Blue): "
+            ).strip()
+        print(f"Blue  — {blue_provider_label()}  [LOCKED]")
 
-    print(
-        "Bonus: chọn một — Red tối đa +5 (B1) hoặc Red Advance tối đa +10 (B2)."
-    )
-    if is_harder_model():
+    if require_red:
+        red = get_red_provider()
+        model = get_red_model()
+        if red == PROVIDER_GEMINI:
+            if not os.environ.get("GOOGLE_API_KEY", "").strip():
+                os.environ["GOOGLE_API_KEY"] = input("Enter Google API Key (Red): ").strip()
+            os.environ["GOOGLE_GENAI_USE_VERTEXAI"] = "0"
+            print(f"Red / Red Advance  — gemini:{model}")
+        else:
+            if not get_openai_api_key():
+                os.environ["OPENAI_API_KEY"] = input("Enter OpenAI API Key (Red): ").strip()
+            print(f"Red / Red Advance  — openai:{model}")
+
         print(
-            f"Model khó ({model}) — tuỳ chọn; không đổi tên agent. "
-            f"(Gợi ý: {HARD_OPENAI_MODEL} / {HARD_GEMINI_MODEL})"
+            "Bonus: chọn một — Red tối đa +5 (B1) hoặc Red Advance tối đa +10 (B2)."
         )
+        if is_harder_model():
+            print(
+                f"Model khó ({model}) — tuỳ chọn; không đổi tên agent. "
+                f"(Gợi ý: {HARD_OPENAI_MODEL} / {HARD_GEMINI_MODEL})"
+            )
 
 
 ALLOWED_TOPICS = [
@@ -269,7 +296,7 @@ ALLOWED_TOPICS = [
     "loan", "interest", "savings", "credit",
     "deposit", "withdrawal", "balance", "payment",
     "tai khoan", "giao dich", "tiet kiem", "lai suat",
-    "chuyen tien", "the tin dung", "so du", "vay",
+    "chuyen tien", "chuyen khoan", "the tin dung", "so du", "vay",
     "ngan hang", "atm",
 ]
 

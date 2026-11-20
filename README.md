@@ -23,9 +23,29 @@
 1. Máy có **Python 3.10+** (khuyến nghị 3.11 hoặc 3.12) và Git.
 2. Tài khoản GitHub cá nhân (để fork + đổi tên repo nộp).
 3. API keys:
-   - **Blue (bắt buộc):** [OpenRouter](https://openrouter.ai/keys) — model cố định [`liquid/lfm-3-1.7b:free`](https://openrouter.ai/liquid/lfm-3-1.7b:free)
+   - **Blue (mặc định):** [OpenRouter](https://openrouter.ai/keys) — model cố định [`liquid/lfm-3-1.7b:free`](https://openrouter.ai/liquid/lfm-3-1.7b:free)
+   - **Blue local (tuỳ chọn):** Ollama với model `lfm3:1.7b-q4_K_M`; không cần OpenRouter key khi chọn chế độ này.
    - **Red (chọn một provider):** [OpenAI](https://platform.openai.com/api-keys) (`gpt-4o-mini`) **hoặc** [Google AI Studio](https://aistudio.google.com/apikey) (`gemini-3.5-flash`)
 4. Đọc nhanh [`RULES.md`](RULES.md) và [`RUBRIC.md`](RUBRIC.md).
+
+### Tuỳ chọn chạy Blue local với Ollama
+
+OpenRouter vẫn là mặc định và model Blue gốc không thay đổi. Để chạy Blue local:
+
+1. Cài Ollama, khởi động Ollama, rồi chạy `ollama pull lfm3:1.7b-q4_K_M`.
+2. Trong `.env`, đặt:
+
+   ```dotenv
+   BLUE_PROVIDER=ollama
+   OLLAMA_BASE_URL=http://localhost:11434/v1
+   OLLAMA_MODEL=lfm3:1.7b-q4_K_M
+   ```
+
+3. Chạy `ollama list` để xác nhận model đã cài, rồi chạy checkpoint như bình thường.
+
+Để quay lại OpenRouter, đặt `BLUE_PROVIDER=openrouter` hoặc bỏ dòng `BLUE_PROVIDER`.
+Kết quả chạy local vẫn dùng cùng schema nhưng không phải bằng chứng chạy OpenRouter;
+đối chiếu quy định chấm trong [`RUBRIC.md`](RUBRIC.md).
 
 ### Hai vai bạn sẽ đóng
 
